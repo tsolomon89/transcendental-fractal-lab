@@ -1,7 +1,6 @@
-
 import React from 'react';
 import { FractalParams } from '../../types';
-import NumberInput from './NumberInput';
+import NumericStepper from './NumericStepper';
 
 interface PerformanceControlsProps {
     params: FractalParams;
@@ -22,8 +21,8 @@ const PerformanceControls: React.FC<PerformanceControlsProps> = ({ params, setPa
 
     return (
         <ControlGroup title="Performance">
-            <NumberInput label="Rows per Frame" value={params.perf.rowsPerFrame} onChange={v => updatePerfParam('rowsPerFrame', v)} step={1} precision={0} />
-            <NumberInput label="Frame Budget (ms)" value={params.perf.frameBudget} onChange={v => updatePerfParam('frameBudget', v)} step={1} precision={0} />
+            <NumericStepper label="Rows per Frame" value={params.perf.rowsPerFrame} onChange={v => updatePerfParam('rowsPerFrame', v)} step={1} precision={0} min={1} />
+            <NumericStepper label="Frame Budget (ms)" value={params.perf.frameBudget} onChange={v => updatePerfParam('frameBudget', v)} step={1} precision={0} min={1} />
         </ControlGroup>
     );
 };

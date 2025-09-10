@@ -1,8 +1,7 @@
-
 import React from 'react';
 import { FractalParams, Palette, PaletteType, GradientPalette, SmoothHSLPalette, SpectralTauPalette } from '../../types';
 import { PALETTES } from '../../constants';
-import NumberInput from './NumberInput';
+import NumericStepper from './NumericStepper';
 
 interface PaletteControlsProps {
     params: FractalParams;
@@ -39,13 +38,13 @@ const PaletteControls: React.FC<PaletteControlsProps> = ({ params, setParams }) 
             <div className="pl-4 border-l-2 border-cyan-500 space-y-2 mt-2 pt-2">
                 {palette.type === PaletteType.SmoothHSL && (
                     <>
-                        <NumberInput label="Hue Start" value={(palette as SmoothHSLPalette).hueStart} onChange={v => updatePaletteParam('hueStart', v)} step={1} precision={0} />
-                        <NumberInput label="Hue Scale" value={(palette as SmoothHSLPalette).hueScale} onChange={v => updatePaletteParam('hueScale', v)} step={0.001} precision={3} />
+                        <NumericStepper label="Hue Start" value={(palette as SmoothHSLPalette).hueStart} onChange={v => updatePaletteParam('hueStart', v)} step={1} precision={0} />
+                        <NumericStepper label="Hue Scale" value={(palette as SmoothHSLPalette).hueScale} onChange={v => updatePaletteParam('hueScale', v)} step={0.001} precision={3} min={0}/>
                     </>
                 )}
                 {palette.type === PaletteType.SpectralTau && (
                     <>
-                         <NumberInput label="Cycles per τ" value={(palette as SpectralTauPalette).cyclesPerTau} onChange={v => updatePaletteParam('cyclesPerTau', v)} step={0.1} precision={2} />
+                         <NumericStepper label="Cycles per τ" value={(palette as SpectralTauPalette).cyclesPerTau} onChange={v => updatePaletteParam('cyclesPerTau', v)} step={0.1} precision={2} min={0} />
                     </>
                 )}
                  {(palette.type === PaletteType.Fire || palette.type === PaletteType.Ice || palette.type === PaletteType.Custom) && (

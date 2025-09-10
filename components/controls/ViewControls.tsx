@@ -1,7 +1,6 @@
-
 import React from 'react';
 import { FractalParams } from '../../types';
-import NumberInput from './NumberInput';
+import NumericStepper from './NumericStepper';
 
 interface ViewControlsProps {
     params: FractalParams;
@@ -28,22 +27,13 @@ const ViewControls: React.FC<ViewControlsProps> = ({ params, setParams }) => {
     return (
         <div className="space-y-4">
             <ControlGroup title="View">
-                <NumberInput label="Center (Re)" value={params.view.centerRe} onChange={v => updateViewParam('centerRe', v)} />
-                <NumberInput label="Center (Im)" value={params.view.centerIm} onChange={v => updateViewParam('centerIm', v)} />
-                 <div className="flex items-center justify-between">
-                    <label className="text-sm text-gray-300">Scale</label>
-                    <input
-                        type="number"
-                        value={params.view.scale}
-                        onChange={e => updateViewParam('scale', parseFloat(e.target.value))}
-                        step={1}
-                        className="w-36 bg-gray-900 text-gray-200 border border-gray-600 rounded-md px-2 py-1 text-right focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                    />
-                </div>
+                <NumericStepper label="Center (Re)" value={params.view.centerRe} onChange={v => updateViewParam('centerRe', v)} step={1e-3} precision={8} />
+                <NumericStepper label="Center (Im)" value={params.view.centerIm} onChange={v => updateViewParam('centerIm', v)} step={1e-3} precision={8} />
+                <NumericStepper label="Scale" value={params.view.scale} onChange={v => updateViewParam('scale', v)} step={1} precision={8} min={1e-15} />
             </ControlGroup>
             <ControlGroup title="Iteration & Escape">
-                <NumberInput label="Max Iterations" value={params.iter.maxIter} onChange={v => updateIterParam('maxIter', v)} step={1} precision={0} />
-                <NumberInput label="Escape Radius" value={params.iter.escapeR} onChange={v => updateIterParam('escapeR', v)} step={0.1} precision={2} />
+                <NumericStepper label="Max Iterations" value={params.iter.maxIter} onChange={v => updateIterParam('maxIter', v)} step={10} precision={0} min={1} />
+                <NumericStepper label="Escape Radius" value={params.iter.escapeR} onChange={v => updateIterParam('escapeR', v)} step={0.1} precision={2} min={2} />
             </ControlGroup>
         </div>
     );
