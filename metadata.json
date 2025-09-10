@@ -1,0 +1,5 @@
+{
+  "name": "τ-Fractal Lab",
+  "description": "An interactive, browser-based laboratory for exploring classic and novel fractal systems. Features progressive rendering, precision controls, bookmarking, and an animation engine for creating and exporting fractal zooms.",
+  "requestFramePermissions": []
+}
