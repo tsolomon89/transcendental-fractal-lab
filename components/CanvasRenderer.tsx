@@ -65,19 +65,9 @@ const CanvasRenderer = forwardRef<HTMLCanvasElement, CanvasRendererProps>(
         ctx.fillStyle = 'black';
         ctx.fillRect(0, 0, width, height);
 
-        const iterator = getIterator(params);
         const lut = buildLut(params.palette);
         
-        const rowsPerBatch = Math.max(1, Math.min(params.perf.rowsPerFrame, height));
-        const imageData = ctx.createImageData(width, rowsPerBatch);
-
-        let currentY = 0;
-        let isCancelled = false;
-        let animationFrameId: number;
-
         const { centerRe, centerIm, scale } = params.view;
-        const { maxIter, escapeR } = params.iter;
-        const escapeRSq = escapeR * escapeR;
         const { mode, juliaC } = params.model;
         
         const aspect = width / height;
@@ -90,6 +80,59 @@ const CanvasRenderer = forwardRef<HTMLCanvasElement, CanvasRendererProps>(
         const invScaleX = viewWidth / width;
         const invScaleY = viewHeight / height;
 
+        if (isAnimating) {
+            onStatusChange({ progress: 0, isRendering: true });
+            
+            // Use lower quality settings for a smooth animation preview
+            const animParams = {
+                ...params,
+                iter: {
+                    ...params.iter,
+                    maxIter: Math.max(30, Math.floor(params.iter.maxIter / 4)),
+                }
+            };
+            const iterator = getIterator(animParams);
+            const { maxIter, escapeR } = animParams.iter;
+            const escapeRSq = escapeR * escapeR;
+            
+            const fullImageData = ctx.createImageData(width, height);
+
+            for (let y = 0; y < height; y++) {
+                const cIm = imOffset + y * invScaleY;
+                for (let x = 0; x < width; x++) {
+                    const cRe = reOffset + x * invScaleX;
+                    const c = { re: cRe, im: cIm };
+                    const z0 = mode === RenderMode.Mandelbrot ? { re: 0, im: 0 } : c;
+                    const cParam = mode === RenderMode.Mandelbrot ? c : juliaC;
+
+                    const result = iterator(cParam, z0, maxIter, escapeRSq);
+                    const nu = calculateSmoothEscape(result.n, result.z);
+                    const [r, g, b] = mapColor(nu, lut);
+                    
+                    const pixelIndex = (y * width + x) * 4;
+                    fullImageData.data[pixelIndex] = r;
+                    fullImageData.data[pixelIndex + 1] = g;
+                    fullImageData.data[pixelIndex + 2] = b;
+                    fullImageData.data[pixelIndex + 3] = 255;
+                }
+            }
+            ctx.putImageData(fullImageData, 0, 0);
+            onStatusChange({ progress: 1, isRendering: false });
+            return; // No cleanup needed for sync render
+        }
+
+        // --- Progressive rendering for static frames ---
+        const iterator = getIterator(params);
+        const { maxIter, escapeR } = params.iter;
+        const escapeRSq = escapeR * escapeR;
+
+        const rowsPerBatch = Math.max(1, Math.min(params.perf.rowsPerFrame, height));
+        const imageData = ctx.createImageData(width, rowsPerBatch);
+
+        let currentY = 0;
+        let isCancelled = false;
+        let animationFrameId: number;
+        
         const renderLoop = () => {
             const startTime = performance.now();
             onStatusChange({ progress: currentY / height, isRendering: true });
@@ -140,7 +183,7 @@ const CanvasRenderer = forwardRef<HTMLCanvasElement, CanvasRendererProps>(
             onStatusChange({ progress: currentY / height, isRendering: false });
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [renderId, dimensions]); 
+    }, [renderId, dimensions, isAnimating, params, onStatusChange]); 
 
     const mapComplexToPixel = useCallback((z: Complex): { x: number; y: number } => {
         const { width, height } = dimensions;
