@@ -117,6 +117,7 @@ export type Keyframe = {
     params: FractalParams;
     duration: number; // in seconds
     easing: Easing;
+    thumbnail?: string;
 };
 
 export enum ZoomInterpolation {

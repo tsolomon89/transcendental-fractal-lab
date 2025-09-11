@@ -9,7 +9,7 @@ const Help: React.FC = () => {
             </summary>
             <div className="mt-2 p-3 bg-gray-900 rounded-lg border border-gray-700 space-y-3">
                 <p><strong>Controls:</strong> Use mouse to pan, wheel to zoom. Click to recenter. Double-click to zoom in/out (with Shift).</p>
-                <p><strong>Keyboard:</strong> Use WASD/Arrows to pan. Use Q/E or +/- to zoom. 'R' recenters to pointer, 'Shift+R' resets view. 'Space' plays/pauses animation.</p>
+                <p><strong>Keyboard:</strong> Use WASD/Arrows to pan. Use Q/E or +/- to zoom. 'R' recenters to pointer, 'Shift+R' resets view. 'Space' adds the current scene as a keyframe.</p>
                 <h4 className="font-bold text-gray-200">Orbit Visualization</h4>
                 <p>Enable "Show Orbit" in the Scene tab to see the iteration path (z₀, z₁, z₂, ...) for the point under your cursor. This helps visualize why a point escapes or remains bounded.</p>
                 <h4 className="font-bold text-gray-200">Model Explanations</h4>

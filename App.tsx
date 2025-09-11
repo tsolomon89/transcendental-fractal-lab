@@ -8,6 +8,7 @@ import Help from './components/Help';
 import useLocalStorage from './hooks/useLocalStorage';
 import { getParamsForTime } from './services/animation';
 import { getOrbitCalculator } from './services/fractalMath';
+import { generateKeyframeThumbnail } from './services/exportRenderer';
 
 type PointerState = 'Idle' | 'Hover' | 'Dragging' | 'Scrolling';
 
@@ -24,6 +25,8 @@ const App: React.FC = () => {
     const [isPlaying, setIsPlaying] = useState(false);
     const [pointerState, setPointerState] = useState<PointerState>('Idle');
     const [orbitPoints, setOrbitPoints] = useState<Complex[] | null>(null);
+    const [isAddingKeyframe, setIsAddingKeyframe] = useState(false);
+    const [keyframeAddedSuccess, setKeyframeAddedSuccess] = useState(false);
 
     const pointerComplexCoords = useRef<{ re: number, im: number } | null>(null);
     const mainRef = useRef<HTMLDivElement>(null);
@@ -96,6 +99,38 @@ const App: React.FC = () => {
             calculateAndSetOrbit({ re, im });
         }
     }, [setParams, params.orbit.show, calculateAndSetOrbit]);
+    
+    const addKeyframe = useCallback(async () => {
+        if (isAddingKeyframe) return;
+        setIsAddingKeyframe(true);
+        try {
+            const thumbnail = await generateKeyframeThumbnail(params);
+            const newKeyframe: Keyframe = {
+                id: new Date().toISOString(),
+                params: JSON.parse(JSON.stringify(params)), // Deep copy
+                duration: 5,
+                easing: 'smoothstep',
+                thumbnail: thumbnail,
+            };
+            setTimeline(t => [...t, newKeyframe]);
+            setKeyframeAddedSuccess(true);
+        } catch (e) {
+            console.error("Failed to generate keyframe thumbnail", e);
+            // Still add keyframe without thumbnail on error
+            const newKeyframe: Keyframe = {
+                id: new Date().toISOString(),
+                params: JSON.parse(JSON.stringify(params)), // Deep copy
+                duration: 5,
+                easing: 'smoothstep',
+            };
+            setTimeline(t => [...t, newKeyframe]);
+            setKeyframeAddedSuccess(true);
+        } finally {
+            setIsAddingKeyframe(false);
+            setTimeout(() => setKeyframeAddedSuccess(false), 1500);
+        }
+    }, [params, setTimeline, isAddingKeyframe]);
+
 
     const handleKeydown = useCallback((e: KeyboardEvent) => {
         if (document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
@@ -108,7 +143,7 @@ const App: React.FC = () => {
         switch(key) {
             case ' ':
                  e.preventDefault();
-                 if (timeline.length > 1) setIsPlaying(p => !p);
+                 addKeyframe();
                  needsUpdate = false;
                  break;
             case 'w':
@@ -168,7 +203,7 @@ const App: React.FC = () => {
         if (needsUpdate) {
             e.preventDefault();
         }
-    }, [setParams, timeline, setIsPlaying, handleRecenter]);
+    }, [setParams, addKeyframe, handleRecenter]);
 
     useEffect(() => {
         window.addEventListener('keydown', handleKeydown);
@@ -259,6 +294,8 @@ const App: React.FC = () => {
                     <p>Max Iter: {params.iter.maxIter}</p>
                     <p>
                        State: {isPlaying ? 'Animating' : pointerState} 
+                       {isAddingKeyframe && ' | Adding Keyframe...'}
+                       {keyframeAddedSuccess && ' | Keyframe Added!'}
                        {renderStatus.isRendering && ` | Rendering... ${(renderStatus.progress * 100).toFixed(1)}%`}
                     </p>
                 </div>
@@ -272,6 +309,9 @@ const App: React.FC = () => {
                     timeline={timeline} setTimeline={setTimeline}
                     animationSettings={animationSettings} setAnimationSettings={setAnimationSettings}
                     isPlaying={isPlaying} setIsPlaying={setIsPlaying}
+                    addKeyframe={addKeyframe}
+                    isAddingKeyframe={isAddingKeyframe}
+                    keyframeAddedSuccess={keyframeAddedSuccess}
                     canvasRef={canvasRef}
                 />
                 <Help />

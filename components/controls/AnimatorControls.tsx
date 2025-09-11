@@ -1,20 +1,16 @@
 
 import React, { useState } from 'react';
-import { FractalParams, Keyframe, Easing, AnimationSettings, ZoomInterpolation } from '../../types';
+import { FractalParams, Keyframe, Easing, AnimationSettings } from '../../types';
 import { EASING_FUNCTIONS } from '../../constants';
 import { renderCompleteFrame } from '../../services/exportRenderer';
 import { getParamsForTime } from '../../services/animation';
 
 interface AnimatorControlsProps {
-    currentParams: FractalParams;
     timeline: Keyframe[];
     setTimeline: React.Dispatch<React.SetStateAction<Keyframe[]>>;
-    animationSettings: AnimationSettings;
-    setAnimationSettings: React.Dispatch<React.SetStateAction<AnimationSettings>>;
     isRendering: boolean;
-    isPlaying: boolean;
-    setIsPlaying: React.Dispatch<React.SetStateAction<boolean>>;
     canvasRef: React.RefObject<HTMLCanvasElement>;
+    animationSettings: AnimationSettings;
 }
 
 const ControlGroup: React.FC<{ title: string, children: React.ReactNode }> = ({ title, children }) => (
@@ -31,22 +27,12 @@ const Button: React.FC<{ onClick: () => void; children: React.ReactNode; classNa
 );
 
 const AnimatorControls: React.FC<AnimatorControlsProps> = ({ 
-    currentParams, timeline, setTimeline,
-    animationSettings, setAnimationSettings,
-    isRendering, isPlaying, setIsPlaying, canvasRef 
+    timeline, setTimeline,
+    isRendering, canvasRef,
+    animationSettings
 }) => {
     const [isExporting, setIsExporting] = useState(false);
     const [exportProgress, setExportProgress] = useState(0);
-
-    const addKeyframe = () => {
-        const newKeyframe: Keyframe = {
-            id: new Date().toISOString(),
-            params: JSON.parse(JSON.stringify(currentParams)), // Deep copy
-            duration: 5,
-            easing: 'smoothstep'
-        };
-        setTimeline(t => [...t, newKeyframe]);
-    };
 
     const updateKeyframe = (id: string, newValues: Partial<Keyframe>) => {
         setTimeline(t => t.map(kf => kf.id === id ? { ...kf, ...newValues } : kf));
@@ -77,14 +63,25 @@ const AnimatorControls: React.FC<AnimatorControlsProps> = ({
         setIsExporting(true);
         setExportProgress(0);
 
-        const canvas = canvasRef.current;
-        const ctx = canvas.getContext('2d', { alpha: false });
-        if (!ctx) {
+        const mainCanvas = canvasRef.current;
+
+        // Create an offscreen canvas to render frames to before capturing.
+        // This prevents capturing the progressive, row-by-row rendering.
+        const offscreenCanvas = document.createElement('canvas');
+        offscreenCanvas.width = mainCanvas.width;
+        offscreenCanvas.height = mainCanvas.height;
+        const offscreenCtx = offscreenCanvas.getContext('2d', { alpha: false });
+
+        // The main canvas context is just for blitting the final frame.
+        const mainCtx = mainCanvas.getContext('2d', { alpha: false });
+
+        if (!offscreenCtx || !mainCtx) {
             setIsExporting(false);
+            alert("Could not get canvas context for exporting.");
             return;
         }
 
-        const stream = canvas.captureStream(30); // 30 FPS
+        const stream = mainCanvas.captureStream(30); // 30 FPS
         const recorder = new MediaRecorder(stream, { mimeType: 'video/webm; codecs=vp9' });
         const chunks: Blob[] = [];
         
@@ -108,7 +105,13 @@ const AnimatorControls: React.FC<AnimatorControlsProps> = ({
         for (let i = 0; i < totalFrames; i++) {
             const currentTime = i / 30;
             const frameParams = getParamsForTime(timeline, currentTime, animationSettings);
-            await renderCompleteFrame(ctx, frameParams, canvas.width, canvas.height);
+            
+            // 1. Render the complete frame to the offscreen canvas.
+            await renderCompleteFrame(offscreenCtx, frameParams, offscreenCanvas.width, offscreenCanvas.height);
+            
+            // 2. Copy the fully rendered frame to the main canvas. This is a single, fast operation.
+            mainCtx.drawImage(offscreenCanvas, 0, 0);
+
             setExportProgress((i + 1) / totalFrames);
         }
 
@@ -121,52 +124,51 @@ const AnimatorControls: React.FC<AnimatorControlsProps> = ({
     return (
         <div className="space-y-4">
              <ControlGroup title="Timeline">
-                 <Button onClick={addKeyframe} disabled={isExporting}>Add Current Scene as Keyframe</Button>
-                 <div className="space-y-2 max-h-60 overflow-y-auto mt-2 p-1">
+                 <div className="space-y-3 max-h-96 overflow-y-auto mt-2 p-1">
                      {timeline.map((kf, index) => (
-                         <div key={kf.id} className="bg-gray-800 p-2 rounded">
-                            <div className="flex items-center justify-between">
-                                <span className="font-bold">Keyframe {index + 1}</span>
-                                <Button onClick={() => deleteKeyframe(kf.id)} className="bg-red-600 hover:bg-red-500" disabled={isExporting}>Delete</Button>
-                            </div>
-                            <div className="text-xs space-y-2 mt-2">
-                                 <div className="flex items-center justify-between">
-                                     <label>Duration (s)</label>
-                                     <input type="number" value={kf.duration} min="0.1" step="0.1" onChange={e => updateKeyframe(kf.id, { duration: parseFloat(e.target.value) || 0 })}
-                                        className="w-20 bg-gray-900 border border-gray-600 rounded px-1" disabled={isExporting} />
-                                 </div>
-                                 <div className="flex items-center justify-between">
-                                    <label>Easing</label>
-                                    <select value={kf.easing} onChange={e => updateKeyframe(kf.id, { easing: e.target.value as Easing })}
-                                        className="bg-gray-900 border border-gray-600 rounded px-1" disabled={isExporting}>
-                                        {Object.keys(EASING_FUNCTIONS).map(e => <option key={e} value={e}>{e}</option>)}
-                                    </select>
-                                 </div>
+                         <div key={kf.id} className="bg-gray-800 p-2 rounded flex space-x-3">
+                            {kf.thumbnail ? (
+                                <img src={kf.thumbnail} alt={`Keyframe ${index + 1}`} className="w-24 h-20 object-cover rounded-sm flex-shrink-0" />
+                            ) : (
+                                <div className="w-24 h-20 bg-gray-900 rounded-sm flex items-center justify-center text-xs text-gray-500 flex-shrink-0">No Preview</div>
+                            )}
+                            <div className="flex-grow min-w-0">
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className="font-bold text-sm">Keyframe {index + 1}</span>
+                                    <Button onClick={() => deleteKeyframe(kf.id)} className="bg-red-600 hover:bg-red-500" disabled={isExporting}>Del</Button>
+                                </div>
+                                <div className="text-xs text-gray-400 font-mono mb-2">
+                                     <p className="truncate">C: {kf.params.view.centerRe.toFixed(4)}, {kf.params.view.centerIm.toFixed(4)}</p>
+                                     <p>Scale: {kf.params.view.scale.toExponential(2)}</p>
+                                     <p>Model: {kf.params.model.type} (k={kf.params.model.k})</p>
+                                </div>
+                                <div className="text-xs space-y-2">
+                                     <div className="flex items-center justify-between">
+                                         <label>Duration (s)</label>
+                                         <input type="number" value={kf.duration} min="0.1" step="0.1" onChange={e => updateKeyframe(kf.id, { duration: parseFloat(e.target.value) || 0 })}
+                                            className="w-16 bg-gray-900 border border-gray-600 rounded px-1 text-right" disabled={isExporting} />
+                                     </div>
+                                     <div className="flex items-center justify-between">
+                                        <label>Easing</label>
+                                        <select value={kf.easing} onChange={e => updateKeyframe(kf.id, { easing: e.target.value as Easing })}
+                                            className="bg-gray-900 border border-gray-600 rounded px-1" disabled={isExporting}>
+                                            {Object.keys(EASING_FUNCTIONS).map(e => <option key={e} value={e}>{e}</option>)}
+                                        </select>
+                                     </div>
+                                </div>
                             </div>
                          </div>
                      ))}
-                     {timeline.length === 0 && <p className="text-xs text-gray-400">Add keyframes to create an animation.</p>}
-                 </div>
-             </ControlGroup>
-
-             <ControlGroup title="Playback & Settings">
-                 <Button onClick={() => setIsPlaying(!isPlaying)} disabled={!canAnimate || isExporting} className="w-full bg-green-600 hover:bg-green-500">
-                     {isPlaying ? 'Pause Preview (Space)' : 'Play Preview (Space)'}
-                 </Button>
-                 <div className="flex items-center justify-between pt-2">
-                    <label className="text-sm">Zoom Interpolation</label>
-                    <select value={animationSettings.zoomInterpolation} 
-                            onChange={e => setAnimationSettings(s => ({...s, zoomInterpolation: e.target.value as ZoomInterpolation}))}
-                            className="bg-gray-900 border border-gray-600 rounded px-1 text-sm" disabled={isExporting || isPlaying}>
-                        {Object.values(ZoomInterpolation).map(e => <option key={e} value={e}>{e}</option>)}
-                    </select>
+                     {timeline.length === 0 && <p className="text-xs text-gray-400">Add keyframes using the button in the 'Scene' tab to create an animation.</p>}
                  </div>
              </ControlGroup>
              
              <ControlGroup title="Export">
                 {isExporting && (
-                    <div className="w-full bg-gray-600 rounded-full h-2.5">
-                        <div className="bg-cyan-500 h-2.5 rounded-full" style={{ width: `${exportProgress * 100}%` }}></div>
+                    <div>
+                        <div className="w-full bg-gray-600 rounded-full h-2.5">
+                            <div className="bg-cyan-500 h-2.5 rounded-full" style={{ width: `${exportProgress * 100}%` }}></div>
+                        </div>
                         <p className="text-xs text-center mt-1">{`Exporting... ${(exportProgress * 100).toFixed(0)}%`}</p>
                     </div>
                 )}
