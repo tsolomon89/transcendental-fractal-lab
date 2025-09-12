@@ -1,4 +1,5 @@
 
+
 export type Complex = {
     re: number;
     im: number;
@@ -76,6 +77,9 @@ export type OrbitParams = {
     alpha: number;
     thickness: number;
     freeze: boolean;
+    showBailoutCircle: boolean;
+    skipInitial: number;
+    showAnalysis: boolean;
 };
 
 export type FractalParams = {

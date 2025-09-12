@@ -1,4 +1,5 @@
 
+
 import React, { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { FractalParams, RenderMode, RenderStatus, Complex } from '../types';
 import { getIterator, calculateSmoothEscape } from '../services/fractalMath';
@@ -216,26 +217,72 @@ const CanvasRenderer = forwardRef<HTMLCanvasElement, CanvasRendererProps>(
         
         ctx.clearRect(0, 0, width, height);
 
-        if (!orbitPoints || orbitPoints.length < 2) return;
+        const { orbit: orbitParams, iter: iterParams } = params;
+
+        // Pass 1: Draw Bailout Circle
+        if (orbitParams.show && orbitParams.showBailoutCircle && iterParams.escapeR > 0) {
+            const originPx = mapComplexToPixel({ re: 0, im: 0 });
+            const edgePx = mapComplexToPixel({ re: iterParams.escapeR, im: 0 });
+            const radiusPx = Math.hypot(edgePx.x - originPx.x, edgePx.y - originPx.y);
+
+            ctx.save();
+            ctx.strokeStyle = 'rgba(200, 200, 200, 0.5)';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath();
+            ctx.arc(originPx.x, originPx.y, radiusPx, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+        }
         
-        const { orbit: orbitParams } = params;
+        if (!orbitParams.show || !orbitPoints || orbitPoints.length < 2) return;
+
+        const dpr = window.devicePixelRatio || 1;
+        
+        const startIndex = Math.min(orbitParams.skipInitial, orbitPoints.length - 1);
+        const visiblePoints = orbitPoints.slice(startIndex);
+
+        if (visiblePoints.length < 2) return;
+
+        const totalVisibleSegments = Math.max(1, visiblePoints.length - 1);
+        
         ctx.globalAlpha = orbitParams.alpha;
-        ctx.lineWidth = orbitParams.thickness * (window.devicePixelRatio || 1);
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
 
-        for (let i = 0; i < orbitPoints.length - 1; i++) {
-            const p1 = mapComplexToPixel(orbitPoints[i]);
-            const p2 = mapComplexToPixel(orbitPoints[i+1]);
-
-            const t = i / (orbitPoints.length - 1);
+        // Pass 2: Draw lines
+        ctx.lineWidth = orbitParams.thickness * dpr;
+        for (let i = 0; i < totalVisibleSegments; i++) {
+            const p1 = mapComplexToPixel(visiblePoints[i]);
+            const p2 = mapComplexToPixel(visiblePoints[i+1]);
+            const t = i / totalVisibleSegments;
             ctx.strokeStyle = getOrbitColor(t, orbitParams.gradient);
-
             ctx.beginPath();
             ctx.moveTo(p1.x, p1.y);
             ctx.lineTo(p2.x, p2.y);
             ctx.stroke();
         }
+
+        // Pass 3: Draw points
+        const pointRadius = Math.max(1, orbitParams.thickness * 0.8 * dpr);
+        for (let i = 0; i < visiblePoints.length; i++) {
+            const p = mapComplexToPixel(visiblePoints[i]);
+            const t = (i > 0 ? i - 1 : 0) / totalVisibleSegments; 
+            ctx.fillStyle = getOrbitColor(t, orbitParams.gradient);
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, pointRadius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Pass 4: Draw start marker
+        const startPoint = mapComplexToPixel(visiblePoints[0]);
+        ctx.fillStyle = '#FFFFFF';
+        ctx.strokeStyle = '#333333';
+        ctx.lineWidth = 1.5 * dpr;
+        ctx.beginPath();
+        ctx.arc(startPoint.x, startPoint.y, pointRadius + 1 * dpr, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
 
     }, [orbitPoints, dimensions, params, mapComplexToPixel]);
 

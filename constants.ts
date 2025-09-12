@@ -1,4 +1,5 @@
 
+
 import { FractalParams, FractalModel, RenderMode, Palette, PaletteType, Keyframe, Easing, ZoomInterpolation, OrbitGradient } from './types';
 
 export const TAU = 2 * Math.PI;
@@ -71,6 +72,9 @@ export const DEFAULT_PARAMS: FractalParams = {
         alpha: 0.8,
         thickness: 1.5,
         freeze: false,
+        showBailoutCircle: false,
+        skipInitial: 0,
+        showAnalysis: false,
     }
 };
 

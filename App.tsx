@@ -7,8 +7,9 @@ import Controls from './components/Controls';
 import Help from './components/Help';
 import useLocalStorage from './hooks/useLocalStorage';
 import { getParamsForTime } from './services/animation';
-import { getOrbitCalculator } from './services/fractalMath';
+import { getOrbitCalculator, cAbsSq } from './services/fractalMath';
 import { generateKeyframeThumbnail } from './services/exportRenderer';
+import ShortcutsOverlay from './components/ShortcutsOverlay';
 
 type PointerState = 'Idle' | 'Hover' | 'Dragging' | 'Scrolling';
 
@@ -27,6 +28,7 @@ const App: React.FC = () => {
     const [orbitPoints, setOrbitPoints] = useState<Complex[] | null>(null);
     const [isAddingKeyframe, setIsAddingKeyframe] = useState(false);
     const [keyframeAddedSuccess, setKeyframeAddedSuccess] = useState(false);
+    const [showShortcuts, setShowShortcuts] = useState(false);
 
     const pointerComplexCoords = useRef<{ re: number, im: number } | null>(null);
     const mainRef = useRef<HTMLDivElement>(null);
@@ -133,6 +135,16 @@ const App: React.FC = () => {
 
 
     const handleKeydown = useCallback((e: KeyboardEvent) => {
+        if (e.key === '?') {
+            e.preventDefault();
+            setShowShortcuts(s => !s);
+            return;
+        }
+
+        if (showShortcuts) {
+            return;
+        }
+        
         if (document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
             return;
         }
@@ -196,6 +208,9 @@ const App: React.FC = () => {
                     handleRecenter(pointerComplexCoords.current.re, pointerComplexCoords.current.im);
                 }
                 break;
+            case 'f':
+                setParams(p => ({ ...p, orbit: { ...p.orbit, freeze: !p.orbit.freeze }}));
+                break;
             default:
                 needsUpdate = false;
         }
@@ -203,7 +218,7 @@ const App: React.FC = () => {
         if (needsUpdate) {
             e.preventDefault();
         }
-    }, [setParams, addKeyframe, handleRecenter]);
+    }, [setParams, addKeyframe, handleRecenter, showShortcuts]);
 
     useEffect(() => {
         window.addEventListener('keydown', handleKeydown);
@@ -250,6 +265,8 @@ const App: React.FC = () => {
     const handlePanEnd = useCallback(() => {
         setPointerState(pointerComplexCoords.current ? 'Hover' : 'Idle');
     }, []);
+
+
 
     const handleZoom = useCallback((zoomFactor: number, anchorRe: number, anchorIm: number) => {
         setPointerState('Scrolling');
@@ -298,6 +315,16 @@ const App: React.FC = () => {
                        {keyframeAddedSuccess && ' | Keyframe Added!'}
                        {renderStatus.isRendering && ` | Rendering... ${(renderStatus.progress * 100).toFixed(1)}%`}
                     </p>
+                    {params.orbit.showAnalysis && orbitPoints && orbitPoints.length > 0 && (
+                        <div className="mt-2 pt-2 border-t border-gray-600 font-mono text-xs">
+                            <p className="text-cyan-400 font-sans text-sm font-semibold">Orbit Analysis</p>
+                            <p>Status: {orbitPoints.length - 1 < params.orbit.maxIter ? 'Escaped' : 'Bounded'}</p>
+                            <p>Iterations: {orbitPoints.length - 1}</p>
+                            {orbitPoints.length > 0 && (
+                               <p>Final |z|: {Math.sqrt(cAbsSq(orbitPoints[orbitPoints.length - 1])).toExponential(4)}</p>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
             <div className="w-full md:w-96 h-1/2 md:h-full overflow-y-auto bg-gray-800 shadow-lg p-4 border-l-2 border-gray-700">
@@ -316,6 +343,7 @@ const App: React.FC = () => {
                 />
                 <Help />
             </div>
+            {showShortcuts && <ShortcutsOverlay onClose={() => setShowShortcuts(false)} />}
         </div>
     );
 };

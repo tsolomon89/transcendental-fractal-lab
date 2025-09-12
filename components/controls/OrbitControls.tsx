@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { FractalParams, OrbitGradient } from '../../types';
 
@@ -35,7 +36,15 @@ const Slider: React.FC<{ label: string; value: number; onChange: (value: number)
 const OrbitControls: React.FC<OrbitControlsProps> = ({ params, setParams }) => {
     
     const updateOrbitParam = <K extends keyof FractalParams['orbit']>(key: K, value: FractalParams['orbit'][K]) => {
-        setParams(p => ({ ...p, orbit: { ...p.orbit, [key]: value } }));
+        setParams(p => {
+            const newOrbitParams = { ...p.orbit, [key]: value };
+
+            if (key === 'maxIter' && typeof value === 'number') {
+                newOrbitParams.skipInitial = Math.min(newOrbitParams.skipInitial, Math.max(0, value - 2));
+            }
+            
+            return { ...p, orbit: newOrbitParams };
+        });
     };
     
     const { orbit } = params;
@@ -43,9 +52,11 @@ const OrbitControls: React.FC<OrbitControlsProps> = ({ params, setParams }) => {
     return (
         <ControlGroup title="Orbit Visualization">
             <Checkbox label="Show Orbit" checked={orbit.show} onChange={v => updateOrbitParam('show', v)} />
-            <Checkbox label="Freeze Orbit" checked={orbit.freeze} onChange={v => updateOrbitParam('freeze', v)} />
+            <Checkbox label="Freeze Orbit (F)" checked={orbit.freeze} onChange={v => updateOrbitParam('freeze', v)} />
             
             <div className={`transition-opacity duration-300 ${orbit.show ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}>
+                 <Checkbox label="Show Bailout Circle" checked={orbit.showBailoutCircle} onChange={v => updateOrbitParam('showBailoutCircle', v)} />
+                 <Checkbox label="Show Analysis on HUD" checked={orbit.showAnalysis} onChange={v => updateOrbitParam('showAnalysis', v)} />
                  <div className="flex items-center justify-between">
                     <label className="text-sm text-gray-300">Gradient</label>
                     <select value={orbit.gradient} onChange={e => updateOrbitParam('gradient', e.target.value as OrbitGradient)} className="bg-gray-900 border border-gray-600 rounded-md px-2 py-1 text-sm">
@@ -53,6 +64,7 @@ const OrbitControls: React.FC<OrbitControlsProps> = ({ params, setParams }) => {
                     </select>
                 </div>
                 <Slider label="Max Iterations" value={orbit.maxIter} onChange={v => updateOrbitParam('maxIter', v)} min={10} max={5000} step={10} />
+                <Slider label="Skip Initial Iterations" value={orbit.skipInitial} onChange={v => updateOrbitParam('skipInitial', v)} min={0} max={Math.max(0, orbit.maxIter - 2)} step={1} />
                 <Slider label="Thickness" value={orbit.thickness} onChange={v => updateOrbitParam('thickness', v)} min={0.5} max={10} step={0.1} />
                 <Slider label="Opacity" value={orbit.alpha} onChange={v => updateOrbitParam('alpha', v)} min={0.1} max={1} step={0.05} />
             </div>

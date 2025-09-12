@@ -1,6 +1,7 @@
 import React from 'react';
 import { FractalParams, FractalModel, RenderMode, Complex } from '../../types';
 import NumericStepper from './NumericStepper';
+import ComplexStepper from './ComplexStepper';
 
 interface ModelControlsProps {
     params: FractalParams;
@@ -54,16 +55,26 @@ const ModelControls: React.FC<ModelControlsProps> = ({ params, setParams }) => {
             </LabeledSelect>
             <NumericStepper label="τ Power (k)" value={model.k} onChange={v => updateModelParam('k', v)} step={0.01} precision={3} />
             {model.mode === RenderMode.Julia && (
-                <div className="pl-4 border-l-2 border-gray-600 space-y-1 mt-2">
-                    <NumericStepper label="Julia C (Re)" value={model.juliaC.re} onChange={v => updateModelParam('juliaC', { ...model.juliaC, re: v })} step={1e-3} precision={6} />
-                    <NumericStepper label="Julia C (Im)" value={model.juliaC.im} onChange={v => updateModelParam('juliaC', { ...model.juliaC, im: v })} step={1e-3} precision={6} />
+                <div className="pl-4 border-l-2 border-gray-600 space-y-1 mt-2 pt-2">
+                    <ComplexStepper
+                        label="Julia C"
+                        value={model.juliaC}
+                        onChange={v => updateModelParam('juliaC', v)}
+                        step={1e-3}
+                        precision={6}
+                    />
                 </div>
             )}
              {model.type === FractalModel.B1 && (
-                <div className="pl-4 border-l-2 border-cyan-500 space-y-1 mt-2">
+                <div className="pl-4 border-l-2 border-cyan-500 space-y-1 mt-2 pt-2">
                      <p className="text-xs text-cyan-400 font-mono">f(z) = z²+c+λ·sin(τᵏz)</p>
-                    <NumericStepper label="λ (Re)" value={model.b1.lambda.re} onChange={v => updateB1Param('lambda', { ...model.b1.lambda, re: v })} step={1e-3} precision={6} />
-                    <NumericStepper label="λ (Im)" value={model.b1.lambda.im} onChange={v => updateB1Param('lambda', { ...model.b1.lambda, im: v })} step={1e-3} precision={6} />
+                     <ComplexStepper
+                        label="λ"
+                        value={model.b1.lambda}
+                        onChange={v => updateB1Param('lambda', v)}
+                        step={1e-3}
+                        precision={6}
+                     />
                 </div>
             )}
              {model.type === FractalModel.B2 && (
@@ -72,8 +83,13 @@ const ModelControls: React.FC<ModelControlsProps> = ({ params, setParams }) => {
                      { [0,1,2,3].map(i => (
                          <div key={i} className="space-y-1 p-2 bg-gray-800 rounded">
                              <p className="text-xs font-semibold text-gray-400">Term i={i+1}</p>
-                            <NumericStepper label={`α${i+1} (Re)`} value={model.b2.alpha[i].re} onChange={v => updateB2Param('alpha', i, { ...model.b2.alpha[i], re: v })} step={1e-3} precision={6} />
-                            <NumericStepper label={`α${i+1} (Im)`} value={model.b2.alpha[i].im} onChange={v => updateB2Param('alpha', i, { ...model.b2.alpha[i], im: v })} step={1e-3} precision={6} />
+                            <ComplexStepper
+                                label={`α${i+1}`}
+                                value={model.b2.alpha[i]}
+                                onChange={v => updateB2Param('alpha', i, v)}
+                                step={1e-3}
+                                precision={6}
+                            />
                             <NumericStepper label={`M${i+1}`} value={model.b2.M[i]} onChange={v => updateB2Param('M', i, v)} step={1} precision={0} min={1} />
                          </div>
                      ))}
