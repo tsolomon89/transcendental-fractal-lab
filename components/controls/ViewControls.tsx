@@ -1,3 +1,5 @@
+
+
 import React from 'react';
 import { FractalParams } from '../../types';
 import NumericStepper from './NumericStepper';
@@ -24,12 +26,15 @@ const ViewControls: React.FC<ViewControlsProps> = ({ params, setParams }) => {
         setParams(p => ({ ...p, iter: { ...p.iter, [key]: value } }));
     };
 
+    // Calculate a dynamic step for the scale control for a better UX across many orders of magnitude
+    const scaleStep = Math.max(1e-15, params.view.scale * 0.01);
+
     return (
         <div className="space-y-4">
             <ControlGroup title="View">
                 <NumericStepper label="Center (Re)" value={params.view.centerRe} onChange={v => updateViewParam('centerRe', v)} step={1e-3} precision={8} />
                 <NumericStepper label="Center (Im)" value={params.view.centerIm} onChange={v => updateViewParam('centerIm', v)} step={1e-3} precision={8} />
-                <NumericStepper label="Scale" value={params.view.scale} onChange={v => updateViewParam('scale', v)} step={1} precision={8} min={1e-15} />
+                <NumericStepper label="Scale" value={params.view.scale} onChange={v => updateViewParam('scale', v)} step={scaleStep} precision={8} min={1e-15} />
             </ControlGroup>
             <ControlGroup title="Iteration & Escape">
                 <NumericStepper label="Max Iterations" value={params.iter.maxIter} onChange={v => updateIterParam('maxIter', v)} step={10} precision={0} min={1} />

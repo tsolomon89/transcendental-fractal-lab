@@ -51,7 +51,7 @@ const OrbitControls: React.FC<OrbitControlsProps> = ({ params, setParams }) => {
 
     return (
         <ControlGroup title="Orbit Visualization">
-            <Checkbox label="Show Orbit" checked={orbit.show} onChange={v => updateOrbitParam('show', v)} />
+            <Checkbox label="Show Orbit (G)" checked={orbit.show} onChange={v => updateOrbitParam('show', v)} />
             <Checkbox label="Freeze Orbit (F)" checked={orbit.freeze} onChange={v => updateOrbitParam('freeze', v)} />
             
             <div className={`transition-opacity duration-300 ${orbit.show ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}>

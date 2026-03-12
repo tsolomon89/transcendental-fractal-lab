@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { FractalParams, RenderStatus, Bookmark, Keyframe, AnimationSettings, ZoomInterpolation, Complex } from './types';
 import { DEFAULT_PARAMS } from './constants';
@@ -25,10 +26,16 @@ const App: React.FC = () => {
     const [renderStatus, setRenderStatus] = useState<RenderStatus>({ progress: 0, isRendering: false });
     const [isPlaying, setIsPlaying] = useState(false);
     const [pointerState, setPointerState] = useState<PointerState>('Idle');
+    const [pointerCoordsForDisplay, setPointerCoordsForDisplay] = useState<Complex | null>(null);
     const [orbitPoints, setOrbitPoints] = useState<Complex[] | null>(null);
     const [isAddingKeyframe, setIsAddingKeyframe] = useState(false);
     const [keyframeAddedSuccess, setKeyframeAddedSuccess] = useState(false);
     const [showShortcuts, setShowShortcuts] = useState(false);
+
+    // Anchor Zoom State
+    const [zoomAnchor, setZoomAnchor] = useState<Complex | null>(null);
+    const lastZoomTimeRef = useRef(0);
+    const isDriftingRef = useRef(false);
 
     const pointerComplexCoords = useRef<{ re: number, im: number } | null>(null);
     const mainRef = useRef<HTMLDivElement>(null);
@@ -42,12 +49,12 @@ const App: React.FC = () => {
     }, []);
 
     useEffect(() => {
-        if (!isPlaying) {
+        if (!isPlaying && !isDriftingRef.current) {
             triggerRender();
         }
     }, [params, triggerRender, isPlaying]);
 
-    // Animation Loop
+    // Animation Loop (Timeline)
     useEffect(() => {
         if (isPlaying && timeline.length > 1) {
             animationStartTime.current = performance.now();
@@ -82,6 +89,75 @@ const App: React.FC = () => {
             }
         };
     }, [isPlaying, timeline, setParams, triggerRender, animationSettings]);
+
+    // Animation Loop (Anchor Zoom Drift)
+    useEffect(() => {
+        let driftFrameId: number | null = null;
+
+        const animateDrift = () => {
+            const now = performance.now();
+            const { anchorZoom } = params;
+
+            // Condition to stop
+            if (!zoomAnchor || now - lastZoomTimeRef.current > anchorZoom.idleThreshold + anchorZoom.persistenceDuration) {
+                if (zoomAnchor) setZoomAnchor(null);
+                if (isDriftingRef.current) {
+                    isDriftingRef.current = false;
+                    triggerRender(); // One final high-quality render
+                }
+                return;
+            }
+
+            // We should be drifting
+            isDriftingRef.current = true;
+            
+            setParams(p => {
+                const { centerRe, centerIm } = p.view;
+                const dx = zoomAnchor.re - centerRe;
+                const dy = zoomAnchor.im - centerIm;
+                const distSq = dx * dx + dy * dy;
+                
+                // A fixed snapEpsilon in world coordinates is not effective at all zoom levels.
+                // Calculate a dynamic threshold based on a tiny fraction of the current view size.
+                const viewHeight = 4 / p.view.scale;
+                const dynamicSnapEpsilon = viewHeight * 0.0001; // 0.01% of view height
+                const snapEpsilonSq = dynamicSnapEpsilon * dynamicSnapEpsilon;
+
+                if (distSq < snapEpsilonSq) {
+                    setZoomAnchor(null); // Stop the animation on the next frame.
+                    // To avoid a jarring jump, we perform a final snap here,
+                    // which is now imperceptible due to the dynamic epsilon.
+                    return { ...p, view: { ...p.view, centerRe: zoomAnchor.re, centerIm: zoomAnchor.im }};
+                }
+
+                let shiftRe = dx * anchorZoom.centeringGain;
+                let shiftIm = dy * anchorZoom.centeringGain;
+
+                const maxShift = viewHeight * p.anchorZoom.maxCenterShiftPerFrame;
+                const shiftMagSq = shiftRe * shiftRe + shiftIm * shiftIm;
+
+                if (shiftMagSq > maxShift * maxShift) {
+                    const shiftMag = Math.sqrt(shiftMagSq);
+                    shiftRe = (shiftRe / shiftMag) * maxShift;
+                    shiftIm = (shiftIm / shiftMag) * maxShift;
+                }
+                
+                const newCenterRe = centerRe + shiftRe;
+                const newCenterIm = centerIm + shiftIm;
+                return { ...p, view: { ...p.view, centerRe: newCenterRe, centerIm: newCenterIm }};
+            });
+            triggerRender(); // Trigger fast render
+            
+            driftFrameId = requestAnimationFrame(animateDrift);
+        };
+
+        if (zoomAnchor) {
+            driftFrameId = requestAnimationFrame(animateDrift);
+        }
+
+        return () => { if(driftFrameId) cancelAnimationFrame(driftFrameId); }
+
+    }, [params, setParams, zoomAnchor, triggerRender]);
     
     const calculateAndSetOrbit = useCallback((coords: Complex) => {
         if (!params.orbit.show) {
@@ -96,11 +172,12 @@ const App: React.FC = () => {
     }, [params, orbitPoints]);
     
     const handleRecenter = useCallback((re: number, im: number) => {
+        setZoomAnchor(null); // Stop any drifting
         setParams(p => ({ ...p, view: { ...p.view, centerRe: re, centerIm: im } }));
-        if (params.orbit.show) {
+        if (params.orbit.show && !params.orbit.freeze) {
             calculateAndSetOrbit({ re, im });
         }
-    }, [setParams, params.orbit.show, calculateAndSetOrbit]);
+    }, [setParams, params.orbit.show, params.orbit.freeze, calculateAndSetOrbit]);
     
     const addKeyframe = useCallback(async () => {
         if (isAddingKeyframe) return;
@@ -172,6 +249,7 @@ const App: React.FC = () => {
             case 'q':
             case '-':
             case '_':
+                setZoomAnchor(null); // Stop any drifting
                 setParams(p => {
                     let newParams = { ...p, view: { ...p.view } };
                     const panAmount = 0.1 / p.view.scale;
@@ -211,6 +289,9 @@ const App: React.FC = () => {
             case 'f':
                 setParams(p => ({ ...p, orbit: { ...p.orbit, freeze: !p.orbit.freeze }}));
                 break;
+            case 'g':
+                setParams(p => ({ ...p, orbit: { ...p.orbit, show: !p.orbit.show }}));
+                break;
             default:
                 needsUpdate = false;
         }
@@ -229,6 +310,7 @@ const App: React.FC = () => {
 
     const handlePointerHover = useCallback((coords: { re: number, im: number } | null) => {
         pointerComplexCoords.current = coords;
+        setPointerCoordsForDisplay(coords);
         if (orbitCalcTimeout.current) clearTimeout(orbitCalcTimeout.current);
 
         if (coords && pointerState !== 'Dragging' && pointerState !== 'Scrolling') {
@@ -245,9 +327,12 @@ const App: React.FC = () => {
     }, [pointerState, params.orbit.show, params.orbit.freeze, calculateAndSetOrbit]);
 
     const handlePan = useCallback((dx: number, dy: number) => {
+        setZoomAnchor(null); // Stop drifting if user pans
         if (!canvasRef.current) return;
         setPointerState('Dragging');
-        setOrbitPoints(null);
+        if (!params.orbit.freeze) {
+            setOrbitPoints(null);
+        }
         setParams(p => {
             const { width, height } = canvasRef.current!;
             const aspect = width / height;
@@ -260,29 +345,90 @@ const App: React.FC = () => {
                 view: { ...p.view, centerRe: p.view.centerRe - panRe, centerIm: p.view.centerIm - panIm }
             };
         });
-    }, [setParams]);
+    }, [setParams, params.orbit.freeze]);
     
     const handlePanEnd = useCallback(() => {
         setPointerState(pointerComplexCoords.current ? 'Hover' : 'Idle');
-    }, []);
+        // After panning, if orbit is not frozen, re-calculate at the current pointer position.
+        if (pointerComplexCoords.current && params.orbit.show && !params.orbit.freeze) {
+            calculateAndSetOrbit(pointerComplexCoords.current);
+        }
+    }, [params.orbit.show, params.orbit.freeze, calculateAndSetOrbit]);
 
 
 
     const handleZoom = useCallback((zoomFactor: number, anchorRe: number, anchorIm: number) => {
         setPointerState('Scrolling');
-        setOrbitPoints(null);
-        setParams(p => {
-            const newScale = p.view.scale * zoomFactor;
-            const newCenterRe = anchorRe + (p.view.centerRe - anchorRe) / zoomFactor;
-            const newCenterIm = anchorIm + (p.view.centerIm - anchorIm) / zoomFactor;
-            return { ...p, view: { ...p.view, scale: newScale, centerRe: newCenterRe, centerIm: newCenterIm } };
-        });
-        setTimeout(() => setPointerState(pointerComplexCoords.current ? 'Hover' : 'Idle'), 150);
-    }, [setParams]);
+        if (!params.orbit.freeze) {
+            setOrbitPoints(null);
+        }
+
+        if (!params.anchorZoom.enabled) {
+            // Legacy behavior
+            setParams(p => {
+                const newScale = p.view.scale * zoomFactor;
+                const newCenterRe = anchorRe + (p.view.centerRe - anchorRe) / zoomFactor;
+                const newCenterIm = anchorIm + (p.view.centerIm - anchorIm) / zoomFactor;
+                return { ...p, view: { ...p.view, scale: newScale, centerRe: newCenterRe, centerIm: newCenterIm } };
+            });
+        } else {
+            // Dynamic Anchor behavior
+            lastZoomTimeRef.current = performance.now();
+            const { anchorZoom, view } = params;
+
+            let shouldSetNewAnchor = false;
+            if (!zoomAnchor) {
+                shouldSetNewAnchor = true;
+            } else {
+                // Dynamic recapture rule
+                if (canvasRef.current && anchorZoom.anchorRetainRadius > 0) {
+                    const { width, height } = canvasRef.current;
+                    const aspect = width / height;
+                    const viewWidth = (4 / view.scale) * aspect;
+                    const retainRadiusWorld = anchorZoom.anchorRetainRadius * viewWidth;
+                    
+                    const dx = anchorRe - zoomAnchor.re;
+                    const dy = anchorIm - zoomAnchor.im;
+                    const distSq = dx * dx + dy * dy;
+
+                    if (distSq > retainRadiusWorld * retainRadiusWorld) {
+                        shouldSetNewAnchor = true;
+                    }
+                }
+            }
+
+            if (shouldSetNewAnchor) {
+                setZoomAnchor({ re: anchorRe, im: anchorIm });
+            }
+            
+            setParams(p => ({
+                ...p,
+                view: { ...p.view, scale: p.view.scale * zoomFactor }
+            }));
+        }
+        
+        // This timeout is just to reset the pointer state in the UI
+        const scrollTimeout = setTimeout(() => {
+            setPointerState(pointerComplexCoords.current ? 'Hover' : 'Idle');
+             if (pointerComplexCoords.current && params.orbit.show && !params.orbit.freeze) {
+                 calculateAndSetOrbit(pointerComplexCoords.current);
+             }
+        }, params.anchorZoom.idleThreshold > 0 ? params.anchorZoom.idleThreshold : 150);
+        
+        return () => clearTimeout(scrollTimeout);
+
+    }, [setParams, params, zoomAnchor, calculateAndSetOrbit]);
 
     useEffect(() => {
-        if (!params.orbit.show && orbitPoints) {
-            setOrbitPoints(null);
+        // When orbit view is turned off, clear points and cancel any pending calculations.
+        if (!params.orbit.show) {
+            if (orbitPoints) {
+                setOrbitPoints(null);
+            }
+            if (orbitCalcTimeout.current) {
+                clearTimeout(orbitCalcTimeout.current);
+                orbitCalcTimeout.current = null;
+            }
         }
     }, [params.orbit.show, orbitPoints]);
 
@@ -294,7 +440,7 @@ const App: React.FC = () => {
                     params={params} 
                     renderId={renderId} 
                     onStatusChange={setRenderStatus}
-                    isAnimating={isPlaying}
+                    isFastRender={isPlaying || isDriftingRef.current}
                     onPointerHover={handlePointerHover}
                     onPan={handlePan}
                     onPanEnd={handlePanEnd}
@@ -305,12 +451,12 @@ const App: React.FC = () => {
                 <div className="absolute top-2 left-2 bg-black bg-opacity-50 p-2 rounded-md text-sm pointer-events-none">
                     <p>Center: {params.view.centerRe.toFixed(6)} + {params.view.centerIm.toFixed(6)}i</p>
                     <p>Scale: {params.view.scale.toExponential(3)}</p>
-                    {pointerComplexCoords.current && pointerState !== 'Idle' && (
-                        <p>Pointer: {pointerComplexCoords.current.re.toFixed(6)} + {pointerComplexCoords.current.im.toFixed(6)}i</p>
+                    {pointerCoordsForDisplay && pointerState !== 'Idle' && (
+                        <p>Pointer: {pointerCoordsForDisplay.re.toFixed(6)} + {pointerCoordsForDisplay.im.toFixed(6)}i</p>
                     )}
                     <p>Max Iter: {params.iter.maxIter}</p>
                     <p>
-                       State: {isPlaying ? 'Animating' : pointerState} 
+                       State: {isPlaying ? 'Animating' : (isDriftingRef.current ? 'Drifting' : pointerState)}
                        {isAddingKeyframe && ' | Adding Keyframe...'}
                        {keyframeAddedSuccess && ' | Keyframe Added!'}
                        {renderStatus.isRendering && ` | Rendering... ${(renderStatus.progress * 100).toFixed(1)}%`}

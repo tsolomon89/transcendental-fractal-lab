@@ -10,7 +10,7 @@ interface CanvasRendererProps {
     params: FractalParams;
     renderId: number;
     onStatusChange: (status: RenderStatus) => void;
-    isAnimating: boolean;
+    isFastRender: boolean;
     onPointerHover: (coords: { re: number; im: number } | null) => void;
     onPan: (dx: number, dy: number) => void;
     onPanEnd: () => void;
@@ -20,7 +20,7 @@ interface CanvasRendererProps {
 }
 
 const CanvasRenderer = forwardRef<HTMLCanvasElement, CanvasRendererProps>(
-    ({ params, renderId, onStatusChange, isAnimating, onPointerHover, onPan, onPanEnd, onZoom, onRecenter, orbitPoints }, ref) => {
+    ({ params, renderId, onStatusChange, isFastRender, onPointerHover, onPan, onPanEnd, onZoom, onRecenter, orbitPoints }, ref) => {
     const fractalCanvasRef = useRef<HTMLCanvasElement>(null);
     const orbitCanvasRef = useRef<HTMLCanvasElement>(null);
     useImperativeHandle(ref, () => fractalCanvasRef.current!);
@@ -81,7 +81,7 @@ const CanvasRenderer = forwardRef<HTMLCanvasElement, CanvasRendererProps>(
         const invScaleX = viewWidth / width;
         const invScaleY = viewHeight / height;
 
-        if (isAnimating) {
+        if (isFastRender) {
             onStatusChange({ progress: 0, isRendering: true });
             
             // Use lower quality settings for a smooth animation preview
@@ -107,8 +107,14 @@ const CanvasRenderer = forwardRef<HTMLCanvasElement, CanvasRendererProps>(
                     const cParam = mode === RenderMode.Mandelbrot ? c : juliaC;
 
                     const result = iterator(cParam, z0, maxIter, escapeRSq);
-                    const nu = calculateSmoothEscape(result.n, result.z);
-                    const [r, g, b] = mapColor(nu, lut);
+                    
+                    let colorValue: number;
+                    if (result.n === -1) { // Inside set
+                        colorValue = result.interiorValue;
+                    } else { // Outside set
+                        colorValue = calculateSmoothEscape(result.n, result.z);
+                    }
+                    const [r, g, b] = mapColor(colorValue, lut);
                     
                     const pixelIndex = (y * width + x) * 4;
                     fullImageData.data[pixelIndex] = r;
@@ -155,9 +161,15 @@ const CanvasRenderer = forwardRef<HTMLCanvasElement, CanvasRendererProps>(
                         const cParam = mode === RenderMode.Mandelbrot ? c : juliaC;
 
                         const result = iterator(cParam, z0, maxIter, escapeRSq);
-                        const nu = calculateSmoothEscape(result.n, result.z);
-                        const [r, g, b] = mapColor(nu, lut);
                         
+                        let colorValue: number;
+                        if (result.n === -1) { // Inside set
+                            colorValue = result.interiorValue;
+                        } else { // Outside set
+                            colorValue = calculateSmoothEscape(result.n, result.z);
+                        }
+                        const [r, g, b] = mapColor(colorValue, lut);
+
                         const pixelIndex = (y * width + x) * 4;
                         imageData.data[pixelIndex] = r;
                         imageData.data[pixelIndex + 1] = g;
@@ -184,7 +196,7 @@ const CanvasRenderer = forwardRef<HTMLCanvasElement, CanvasRendererProps>(
             onStatusChange({ progress: currentY / height, isRendering: false });
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [renderId, dimensions, isAnimating, params, onStatusChange]); 
+    }, [renderId, dimensions, isFastRender, params, onStatusChange]); 
 
     const mapComplexToPixel = useCallback((z: Complex): { x: number; y: number } => {
         const { width, height } = dimensions;
@@ -360,7 +372,9 @@ const CanvasRenderer = forwardRef<HTMLCanvasElement, CanvasRendererProps>(
 
     const handleWheel = (e: React.WheelEvent) => {
         e.preventDefault();
-        const zoomFactor = Math.pow(1.1, -e.deltaY / 100);
+        // Use Math.exp for smoother zoom and adjust sensitivity.
+        const zoomSensitivity = 0.002;
+        const zoomFactor = Math.exp(-e.deltaY * zoomSensitivity);
         const coords = mapPixelToComplex(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
         onZoom(zoomFactor, coords.re, coords.im);
     };

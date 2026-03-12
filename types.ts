@@ -82,6 +82,21 @@ export type OrbitParams = {
     showAnalysis: boolean;
 };
 
+export enum InteriorColoringType {
+    None = 'None',
+    FinalPointAngle = 'Final Point Angle',
+    OrbitTrap = 'Orbit Trap',
+}
+
+export type AnchorZoomParams = {
+    enabled: boolean;
+    centeringGain: number; // 0-1
+    idleThreshold: number; // ms
+    persistenceDuration: number; // ms
+    maxCenterShiftPerFrame: number; // fraction of view height
+    anchorRetainRadius: number; // fraction of view width
+};
+
 export type FractalParams = {
     model: {
         type: FractalModel;
@@ -106,6 +121,14 @@ export type FractalParams = {
     };
     palette: Palette;
     orbit: OrbitParams;
+    interior: {
+        type: InteriorColoringType;
+        orbitTrap: {
+            center: Complex;
+            radius: number;
+        };
+    };
+    anchorZoom: AnchorZoomParams;
 };
 
 export type Bookmark = {

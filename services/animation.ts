@@ -1,4 +1,5 @@
 
+
 import { FractalParams, Keyframe, AnimationSettings, ZoomInterpolation, Complex, PaletteType, GradientPalette, Palette, SmoothHSLPalette, SpectralTauPalette } from '../types';
 import { EASING_FUNCTIONS } from '../constants';
 
@@ -96,6 +97,16 @@ export function interpolateParams(
     
     // Palette
     interpolated.palette = interpolatePalette(p1.palette, p2.palette, t);
+
+    // Interior Coloring
+    if (p1.interior.type === p2.interior.type) {
+        interpolated.interior.type = p1.interior.type;
+        interpolated.interior.orbitTrap.radius = lerp(p1.interior.orbitTrap.radius, p2.interior.orbitTrap.radius, t);
+        interpolated.interior.orbitTrap.center = lerpComplex(p1.interior.orbitTrap.center, p2.interior.orbitTrap.center, t);
+    } else {
+        // if types differ, hold p1's interior settings for the duration of the segment
+        interpolated.interior = p1.interior;
+    }
 
     return interpolated;
 }

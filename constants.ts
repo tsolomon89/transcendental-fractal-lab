@@ -1,6 +1,6 @@
 
 
-import { FractalParams, FractalModel, RenderMode, Palette, PaletteType, Keyframe, Easing, ZoomInterpolation, OrbitGradient } from './types';
+import { FractalParams, FractalModel, RenderMode, Palette, PaletteType, Keyframe, Easing, ZoomInterpolation, OrbitGradient, InteriorColoringType } from './types';
 
 export const TAU = 2 * Math.PI;
 export const LOG2 = Math.log(2);
@@ -75,7 +75,22 @@ export const DEFAULT_PARAMS: FractalParams = {
         showBailoutCircle: false,
         skipInitial: 0,
         showAnalysis: false,
-    }
+    },
+    interior: {
+        type: InteriorColoringType.None,
+        orbitTrap: {
+            center: { re: 0, im: 0 },
+            radius: 0.5,
+        }
+    },
+    anchorZoom: {
+        enabled: true,
+        centeringGain: 0.12,
+        idleThreshold: 200,
+        persistenceDuration: 250,
+        maxCenterShiftPerFrame: 0.05,
+        anchorRetainRadius: 0.25,
+    },
 };
 
 export const SEED_SCENES: { name: string; params: Partial<FractalParams> }[] = [

@@ -40,6 +40,7 @@ export const SHORTCUTS: Shortcut[] = [
     {
         category: 'Orbit Control',
         bindings: [
+            { keys: ['G'], description: 'Show / hide the orbit trace' },
             { keys: ['F'], description: 'Freeze / unfreeze the orbit trace' },
         ],
     },

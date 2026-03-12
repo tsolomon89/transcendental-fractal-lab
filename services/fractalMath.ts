@@ -1,9 +1,11 @@
 
-import { Complex, FractalParams, FractalModel } from '../types';
+
+import { Complex, FractalParams, FractalModel, InteriorColoringType } from '../types';
 import { TAU, LOG2 } from '../constants';
 
 // --- Complex Number Operations ---
 export const cAdd = (a: Complex, b: Complex): Complex => ({ re: a.re + b.re, im: a.im + b.im });
+export const cSub = (a: Complex, b: Complex): Complex => ({ re: a.re - b.re, im: a.im - b.im });
 export const cMul = (a: Complex, b: Complex): Complex => ({ re: a.re * b.re - a.im * b.im, im: a.re * b.im + a.im * b.re });
 export const cAbsSq = (z: Complex): number => z.re * z.re + z.im * z.im;
 
@@ -29,10 +31,11 @@ export const calculateSmoothEscape = (n: number, z: Complex): number => {
 };
 
 
-type IteratorFunction = (c: Complex, z0: Complex, maxIter: number, escapeRSq: number) => { n: number, z: Complex };
+type IteratorFunction = (c: Complex, z0: Complex, maxIter: number, escapeRSq: number) => { n: number, z: Complex, interiorValue: number };
 
 export const getIterator = (params: FractalParams): IteratorFunction => {
-    const { type, k, b1, b2 } = params.model;
+    const { type: modelType, k, b1, b2 } = params.model;
+    const { type: interiorType, orbitTrap } = params.interior;
     const { lambda } = b1;
     const { alpha, M } = b2;
 
@@ -41,14 +44,16 @@ export const getIterator = (params: FractalParams): IteratorFunction => {
 
     const iterate: IteratorFunction = (c, z0, maxIter, escapeRSq) => {
         let z = { ...z0 };
+        let minTrapDistSq = Infinity;
+
         for (let n = 0; n < maxIter; n++) {
             if (cAbsSq(z) > escapeRSq) {
-                return { n, z };
+                return { n, z, interiorValue: -1 };
             }
 
             let zSq = cMul(z, z);
             
-            switch (type) {
+            switch (modelType) {
                 case FractalModel.A0: {
                     const zSqScaled = { re: zSq.re * tau_k, im: zSq.im * tau_k };
                     z = cAdd(zSqScaled, c);
@@ -80,8 +85,28 @@ export const getIterator = (params: FractalParams): IteratorFunction => {
                     z = cAdd(cAdd(zSq, c), sum);
                     break;
             }
+
+            if (interiorType === InteriorColoringType.OrbitTrap) {
+                const distSq = cAbsSq(cSub(z, orbitTrap.center));
+                if (distSq < minTrapDistSq) {
+                    minTrapDistSq = distSq;
+                }
+            }
         }
-        return { n: -1, z };
+
+        // Point is inside
+        let interiorValue = -1;
+        switch (interiorType) {
+            case InteriorColoringType.FinalPointAngle:
+                interiorValue = (Math.atan2(z.im, z.re) + Math.PI) / TAU;
+                break;
+            case InteriorColoringType.OrbitTrap:
+                const dist = Math.sqrt(minTrapDistSq);
+                interiorValue = Math.exp(-dist / orbitTrap.radius);
+                break;
+        }
+
+        return { n: -1, z, interiorValue };
     };
     return iterate;
 };

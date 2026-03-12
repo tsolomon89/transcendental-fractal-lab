@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import { FractalParams, Bookmark, Keyframe, AnimationSettings, ZoomInterpolation } from '../types';
 import ModelControls from './controls/ModelControls';
@@ -8,6 +9,7 @@ import PaletteControls from './controls/PaletteControls';
 import BookmarkControls from './controls/BookmarkControls';
 import AnimatorControls from './controls/AnimatorControls';
 import OrbitControls from './controls/OrbitControls';
+import AnchorZoomControls from './controls/AnchorZoomControls';
 
 interface ControlsProps {
     params: FractalParams;
@@ -115,6 +117,7 @@ const Controls: React.FC<ControlsProps> = (props) => {
                         </ControlGroup>
                         <ModelControls params={params} setParams={setParams} />
                         <ViewControls params={params} setParams={setParams} />
+                        <AnchorZoomControls params={params} setParams={setParams} />
                         <OrbitControls params={params} setParams={setParams} />
                         <PerformanceControls params={params} setParams={setParams} />
                     </div>

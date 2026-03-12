@@ -1,4 +1,5 @@
 
+
 import { FractalParams, RenderMode } from '../types';
 import { getIterator, calculateSmoothEscape } from './fractalMath';
 import { buildLut, mapColor } from './color';
@@ -45,8 +46,14 @@ export async function renderCompleteFrame(
             const cParam = mode === RenderMode.Mandelbrot ? c : juliaC;
 
             const result = iterator(cParam, z0, maxIter, escapeRSq);
-            const nu = calculateSmoothEscape(result.n, result.z);
-            const [r, g, b] = mapColor(nu, lut);
+
+            let colorValue: number;
+            if (result.n === -1) { // Inside set
+                colorValue = result.interiorValue;
+            } else { // Outside set
+                colorValue = calculateSmoothEscape(result.n, result.z);
+            }
+            const [r, g, b] = mapColor(colorValue, lut);
 
             const pixelIndex = x * 4;
             imageData.data[pixelIndex] = r;
@@ -109,8 +116,14 @@ export function generateKeyframeThumbnail(params: FractalParams): Promise<string
                 const cParam = mode === RenderMode.Mandelbrot ? c : juliaC;
 
                 const result = iterator(cParam, z0, maxIter, escapeRSq);
-                const nu = calculateSmoothEscape(result.n, result.z);
-                const [r, g, b] = mapColor(nu, lut);
+                
+                let colorValue: number;
+                if (result.n === -1) { // Inside set
+                    colorValue = result.interiorValue;
+                } else { // Outside set
+                    colorValue = calculateSmoothEscape(result.n, result.z);
+                }
+                const [r, g, b] = mapColor(colorValue, lut);
 
                 const pixelIndex = (y * THUMB_WIDTH + x) * 4;
                 imageData.data[pixelIndex] = r;
